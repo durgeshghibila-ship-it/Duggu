@@ -1,47 +1,30 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Chrome Tab Audio Client</title>
+  <title>Audio Client</title>
 </head>
 <body>
-  <h2>Client – Play Audio</h2>
-  <audio id="audio" controls autoplay></audio>
-  <pre id="log"></pre>
+  <h2>Android Audio Client</h2>
+  <textarea id="offer" placeholder="Paste server offer here"></textarea>
+  <button id="connect">Connect</button>
+  <pre id="answer"></pre>
+  <audio id="player" autoplay controls></audio>
 
-  <script type="module">
-    const SIGNALING_SERVER = 'wss://signaling.simplewebrtc.com';
-    const pc = new RTCPeerConnection();
-    const audio = document.getElementById('audio');
-    const log = document.getElementById('log');
-    const sessionId = new URLSearchParams(window.location.search).get('session');
-    const ws = new WebSocket(SIGNALING_SERVER);
+  <script>
+    let pc = new RTCPeerConnection();
+    let offerBox = document.getElementById("offer");
+    let connectBtn = document.getElementById("connect");
+    let answerBox = document.getElementById("answer");
+    let player = document.getElementById("player");
 
-    function logMsg(msg) {
-      console.log(msg);
-      log.textContent += msg + "\n";
-    }
+    pc.ontrack = e => player.srcObject = e.streams[0];
 
-    ws.onopen = () => logMsg("Connected to signaling server.");
-
-    ws.onerror = (err) => logMsg("WebSocket error: " + err);
-
-    pc.ontrack = e => {
-      audio.srcObject = e.streams[0];
-      audio.play().catch(() => {
-        logMsg("Autoplay blocked, tap audio to play manually.");
-      });
-    };
-
-    ws.onmessage = async e => {
-      const data = JSON.parse(e.data);
-      if (data.session === sessionId && data.type === 'offer') {
-        await pc.setRemoteDescription(data.sdp);
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        ws.send(JSON.stringify({ type: 'answer', sdp: answer, session: sessionId }));
-        logMsg("✅ Answer sent. Audio should start streaming.");
-      }
+    connectBtn.onclick = async () => {
+      let offer = JSON.parse(offerBox.value);
+      await pc.setRemoteDescription(offer);
+      let answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      answerBox.textContent = JSON.stringify(answer);
     };
   </script>
 </body>
