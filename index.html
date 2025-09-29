@@ -28,7 +28,6 @@
       log.textContent += msg + "\n";
     }
 
-    // Generate QR code pointing to your GitHub Pages client.html
     ws.onopen = () => {
       const clientURL = `${location.origin}/Duggu/client.html?session=${sessionId}`;
       QRCode.toCanvas(qrCanvas, clientURL, err => {
@@ -52,24 +51,32 @@
 
     startBtn.onclick = async () => {
       try {
+        logMsg("Requesting tab audio… Chrome should now show a popup.");
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: false,
           audio: true
         });
+
         if (!stream.getAudioTracks().length) {
-          logMsg("⚠️ No audio track found. Make sure you checked 'Share audio'.");
+          logMsg("⚠️ No audio track found. Did you check 'Share tab audio'?");
+          alert("⚠️ No audio track found. Try again and tick 'Share tab audio' in the popup.");
           return;
         }
-        stream.getAudioTracks().forEach(track => pc.addTrack(track, stream));
 
+        stream.getAudioTracks().forEach(track => pc.addTrack(track, stream));
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
 
         ws.send(JSON.stringify({ type: 'offer', sdp: offer, session: sessionId }));
         logMsg("Offer sent. Waiting for client to connect...");
       } catch (err) {
-        logMsg("❌ Failed to capture audio: " + err.message);
-        alert("Make sure you're on desktop Chrome and tick 'Share audio'.");
+        logMsg("❌ getDisplayMedia failed: " + err.message);
+        alert("❌ Chrome did not show the screen-share popup.\n\n"
+          + "Possible reasons:\n"
+          + "- You are not using desktop Chrome\n"
+          + "- Site not opened via HTTPS (use GitHub Pages link)\n"
+          + "- Popup blocked by browser settings\n\n"
+          + "Error: " + err.message);
       }
     };
   </script>
