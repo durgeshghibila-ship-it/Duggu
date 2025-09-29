@@ -1,36 +1,64 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Audio Server</title>
+  <meta charset="UTF-8">
+  <title>ChromeOS Audio Host</title>
 </head>
 <body>
-  <h2>ChromeOS Audio Server</h2>
+  <h2>ChromeOS Audio Host</h2>
   <button id="start">Start Streaming</button>
-  <pre id="offer"></pre>
-  <textarea id="answer" placeholder="Paste client answer here"></textarea>
-  <button id="setAnswer">Set Answer</button>
+  <p>Scan this QR code with your phone:</p>
+  <canvas id="qr"></canvas>
+  <pre id="log"></pre>
 
-  <script>
+  <script type="module">
+    import * as QRCode from 'https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js';
+
+    const startBtn = document.getElementById("start");
+    const qrCanvas = document.getElementById("qr");
+    const log = document.getElementById("log");
     let pc = new RTCPeerConnection();
-    let startBtn = document.getElementById("start");
-    let offerBox = document.getElementById("offer");
-    let answerBox = document.getElementById("answer");
-    let setAnswerBtn = document.getElementById("setAnswer");
+
+    function logMsg(msg) {
+      console.log(msg);
+      log.textContent += msg + "\n";
+    }
 
     startBtn.onclick = async () => {
-      let stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      try {
+        // Capture microphone audio
+        logMsg("Requesting microphone audio...");
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
-      let offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      offerBox.textContent = JSON.stringify(offer);
+        // Create offer
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        logMsg("Offer created.");
+
+        // Encode offer as base64 for QR
+        const offerBase64 = btoa(JSON.stringify(offer));
+        const url = `${location.origin}/client.html?offer=${offerBase64}`;
+
+        // Generate QR code
+        QRCode.toCanvas(qrCanvas, url, err => {
+          if (err) logMsg("QR code error: " + err);
+          else logMsg("QR code ready. Scan it with your phone!");
+        });
+
+      } catch (err) {
+        logMsg("Error: " + err.message);
+        alert("Failed to access microphone. Make sure Chrome has permission.");
+      }
     };
 
-    setAnswerBtn.onclick = async () => {
-      let answer = JSON.parse(answerBox.value);
-      await pc.setRemoteDescription(answer);
-      alert("Client connected!");
-    };
+    // Handle answer from client
+    window.addEventListener("message", async e => {
+      if (e.data.type === "answer") {
+        await pc.setRemoteDescription(e.data.answer);
+        logMsg("✅ Client connected. Audio streaming started!");
+      }
+    });
   </script>
 </body>
 </html>
