@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chrome Tab Audio Host</title>
+</head>
+<body>
+<h2>Host - Chrome Tab Audio</h2>
+<button id="start">Start Streaming</button>
+<p>Scan this QR code on your phone:</p>
+<canvas id="qr"></canvas>
+
+<script type="module">
+import QRCode from 'https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js';
+
+const SIGNALING_SERVER = 'wss://signaling.simplewebrtc.com';
+let pc = new RTCPeerConnection();
+let ws = new WebSocket(SIGNALING_SERVER);
+let sessionId = Math.floor(Math.random() * 1000000);
+
+const startBtn = document.getElementById('start');
+const qrCanvas = document.getElementById('qr');
+
+// Generate QR code for client page with session
+QRCode.toCanvas(qrCanvas, `${location.origin}/client.html?session=${sessionId}`, err => {
+    if(err) console.error(err);
+});
+
+ws.onopen = () => console.log('Connected to signaling server');
+
+ws.onmessage = async (e) => {
+    let data = JSON.parse(e.data);
+    if(data.session === sessionId && data.type === 'answer') {
+        await pc.setRemoteDescription(data.sdp);
+        console.log('Connection established!');
+    }
+};
+
+startBtn.onclick = async () => {
+    try {
+        // Capture tab audio (desktop Chrome only)
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: false, audio: true });
+        stream.getAudioTracks().forEach(track => pc.addTrack(track, stream));
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        // Send offer to signaling server
+        ws.send(JSON.stringify({ type:'offer', sdp: offer, session: sessionId }));
+        console.log('Streaming started, scan QR to connect client.');
+    } catch(err) {
+        console.error('Failed to capture audio:', err);
+        alert('Make sure "Share audio" is checked in Chrome tab capture.');
+    }
+};
+</script>
+</body>
+</html>
