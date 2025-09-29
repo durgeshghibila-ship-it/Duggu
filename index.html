@@ -1,84 +1,35 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Chrome Tab Audio Host</title>
+  <title>Audio Server</title>
 </head>
 <body>
-  <h2>Host – Chrome Tab Audio</h2>
+  <h2>ChromeOS Audio Server</h2>
   <button id="start">Start Streaming</button>
-  <p>Scan this QR code with your phone to connect:</p>
-  <canvas id="qr"></canvas>
-  <pre id="log"></pre>
+  <pre id="offer"></pre>
+  <textarea id="answer" placeholder="Paste client answer here"></textarea>
+  <button id="setAnswer">Set Answer</button>
 
-  <script type="module">
-    import * as QRCode from 'https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js';
-
-    const SIGNALING_SERVER = 'wss://signaling.simplewebrtc.com';
-    const pc = new RTCPeerConnection();
-    const ws = new WebSocket(SIGNALING_SERVER);
-    const sessionId = Math.floor(Math.random() * 1000000);
-
-    const startBtn = document.getElementById('start');
-    const qrCanvas = document.getElementById('qr');
-    const log = document.getElementById('log');
-
-    function logMsg(msg) {
-      console.log(msg);
-      log.textContent += msg + "\n";
-    }
-
-    // Generate QR code for client
-    ws.onopen = () => {
-      const clientURL = `${location.origin}/Duggu/client.html?session=${sessionId}`;
-      QRCode.toCanvas(qrCanvas, clientURL, err => {
-        if (err) logMsg("QR code error: " + err);
-        else logMsg("QR code ready. Scan it with your phone.");
-      });
-      logMsg("Connected to signaling server.");
-    };
-
-    ws.onerror = (err) => {
-      logMsg("WebSocket error: " + err);
-    };
-
-    ws.onmessage = async (e) => {
-      const data = JSON.parse(e.data);
-      if (data.session === sessionId && data.type === 'answer') {
-        await pc.setRemoteDescription(data.sdp);
-        logMsg("✅ Client connected. Audio streaming should start.");
-      }
-    };
+  <script>
+    let pc = new RTCPeerConnection();
+    let startBtn = document.getElementById("start");
+    let offerBox = document.getElementById("offer");
+    let answerBox = document.getElementById("answer");
+    let setAnswerBtn = document.getElementById("setAnswer");
 
     startBtn.onclick = async () => {
-      try {
-        logMsg("Requesting tab audio… Chrome should show a popup now.");
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: false, audio: true });
+      let stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
-        if (!stream.getAudioTracks().length) {
-          logMsg("⚠️ No audio track found. Did you check 'Share tab audio'?");
-          alert("⚠️ No audio track found. Please try again and tick 'Share tab audio'.");
-          return;
-        }
+      let offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      offerBox.textContent = JSON.stringify(offer);
+    };
 
-        stream.getAudioTracks().forEach(track => pc.addTrack(track, stream));
-
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-
-        ws.send(JSON.stringify({ type: 'offer', sdp: offer, session: sessionId }));
-        logMsg("Offer sent. Waiting for client to connect...");
-      } catch (err) {
-        logMsg("❌ getDisplayMedia failed: " + err.message);
-        alert(
-          "❌ Chrome did not show the screen-share popup.\n\n" +
-          "Possible reasons:\n" +
-          "- You are not using desktop Chrome\n" +
-          "- Site not opened via HTTPS (use GitHub Pages link)\n" +
-          "- Popup blocked by browser settings\n\n" +
-          "Error: " + err.message
-        );
-      }
+    setAnswerBtn.onclick = async () => {
+      let answer = JSON.parse(answerBox.value);
+      await pc.setRemoteDescription(answer);
+      alert("Client connected!");
     };
   </script>
 </body>
