@@ -1,31 +1,50 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <title>Audio Client</title>
 </head>
 <body>
-  <h2>Android Audio Client</h2>
-  <textarea id="offer" placeholder="Paste server offer here"></textarea>
-  <button id="connect">Connect</button>
-  <pre id="answer"></pre>
+  <h2>Audio Client</h2>
   <audio id="player" autoplay controls></audio>
+  <pre id="log"></pre>
 
   <script>
-    let pc = new RTCPeerConnection();
-    let offerBox = document.getElementById("offer");
-    let connectBtn = document.getElementById("connect");
-    let answerBox = document.getElementById("answer");
-    let player = document.getElementById("player");
+    const log = document.getElementById("log");
+    const audio = document.getElementById("player");
+    const pc = new RTCPeerConnection();
 
-    pc.ontrack = e => player.srcObject = e.streams[0];
+    function logMsg(msg) {
+      console.log(msg);
+      log.textContent += msg + "\n";
+    }
 
-    connectBtn.onclick = async () => {
-      let offer = JSON.parse(offerBox.value);
-      await pc.setRemoteDescription(offer);
-      let answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      answerBox.textContent = JSON.stringify(answer);
+    // Receive audio
+    pc.ontrack = e => {
+      audio.srcObject = e.streams[0];
+      logMsg("Audio stream received.");
     };
+
+    async function init() {
+      const params = new URLSearchParams(window.location.search);
+      const offerBase64 = params.get("offer");
+      if (!offerBase64) {
+        logMsg("No offer found in URL.");
+        return;
+      }
+
+      const offer = JSON.parse(atob(offerBase64));
+      await pc.setRemoteDescription(offer);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      logMsg("Answer created.");
+
+      // Send answer back to parent window (host)
+      window.opener.postMessage({ type: "answer", answer }, "*");
+      logMsg("Answer sent to host.");
+    }
+
+    init();
   </script>
 </body>
 </html>
