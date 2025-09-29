@@ -1,64 +1,49 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>ChromeOS Audio Host</title>
+  <title>Audio Server</title>
 </head>
 <body>
-  <h2>ChromeOS Audio Host</h2>
+  <h2>ChromeOS Audio Server</h2>
   <button id="start">Start Streaming</button>
-  <p>Scan this QR code with your phone:</p>
-  <canvas id="qr"></canvas>
-  <pre id="log"></pre>
+  <textarea id="offer" rows="5" cols="60" readonly></textarea>
+  <textarea id="answer" placeholder="Paste client answer here" rows="5" cols="60"></textarea>
+  <button id="setAnswer">Set Answer</button>
 
-  <script type="module">
-    import * as QRCode from 'https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js';
-
+  <script>
+    const pc = new RTCPeerConnection();
     const startBtn = document.getElementById("start");
-    const qrCanvas = document.getElementById("qr");
-    const log = document.getElementById("log");
-    let pc = new RTCPeerConnection();
+    const offerBox = document.getElementById("offer");
+    const answerBox = document.getElementById("answer");
+    const setAnswerBtn = document.getElementById("setAnswer");
 
-    function logMsg(msg) {
-      console.log(msg);
-      log.textContent += msg + "\n";
-    }
-
-    startBtn.onclick = async () => {
-      try {
-        // Capture microphone audio
-        logMsg("Requesting microphone audio...");
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(track => pc.addTrack(track, stream));
-
-        // Create offer
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        logMsg("Offer created.");
-
-        // Encode offer as base64 for QR
-        const offerBase64 = btoa(JSON.stringify(offer));
-        const url = `${location.origin}/client.html?offer=${offerBase64}`;
-
-        // Generate QR code
-        QRCode.toCanvas(qrCanvas, url, err => {
-          if (err) logMsg("QR code error: " + err);
-          else logMsg("QR code ready. Scan it with your phone!");
-        });
-
-      } catch (err) {
-        logMsg("Error: " + err.message);
-        alert("Failed to access microphone. Make sure Chrome has permission.");
+    pc.onicecandidate = e => {
+      if (!e.candidate) { // ICE gathering finished
+        offerBox.value = btoa(JSON.stringify(pc.localDescription)); // encode as short base64
+        offerBox.select(); // auto select for easy copy
       }
     };
 
-    // Handle answer from client
-    window.addEventListener("message", async e => {
-      if (e.data.type === "answer") {
-        await pc.setRemoteDescription(e.data.answer);
-        logMsg("✅ Client connected. Audio streaming started!");
+    startBtn.onclick = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+      } catch (err) {
+        alert("Error accessing microphone: " + err.message);
       }
-    });
+    };
+
+    setAnswerBtn.onclick = async () => {
+      try {
+        const answer = JSON.parse(atob(answerBox.value));
+        await pc.setRemoteDescription(answer);
+        alert("✅ Client connected. Audio streaming started!");
+      } catch (err) {
+        alert("Invalid answer: " + err.message);
+      }
+    };
   </script>
 </body>
 </html>
