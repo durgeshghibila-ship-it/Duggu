@@ -1,47 +1,50 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <title>Audio Server</title>
-</head>
+<head><meta charset="utf-8"><title>Audio Server (manual SDP)</title></head>
 <body>
-  <h2>ChromeOS Audio Server</h2>
-  <button id="start">Start Streaming</button>
-  <textarea id="offer" rows="5" cols="60" readonly></textarea>
-  <textarea id="answer" placeholder="Paste client answer here" rows="5" cols="60"></textarea>
+  <h2>ChromeOS Full System Audio — Server</h2>
+  <button id="start">Start capture & create offer</button>
+  <p>Offer (copy to client):</p>
+  <textarea id="offer" rows="8" cols="80"></textarea>
+  <p>Paste client answer here:</p>
+  <textarea id="answer" rows="8" cols="80"></textarea><br>
   <button id="setAnswer">Set Answer</button>
-
   <script>
-    const pc = new RTCPeerConnection();
-    const startBtn = document.getElementById("start");
-    const offerBox = document.getElementById("offer");
-    const answerBox = document.getElementById("answer");
-    const setAnswerBtn = document.getElementById("setAnswer");
+    const startBtn = document.getElementById('start');
+    const offerBox = document.getElementById('offer');
+    const answerBox = document.getElementById('answer');
+    const setAnswerBtn = document.getElementById('setAnswer');
 
+    const pc = new RTCPeerConnection();
     pc.onicecandidate = e => {
-      if (!e.candidate) { // ICE gathering finished
-        offerBox.value = btoa(JSON.stringify(pc.localDescription)); // encode as short base64
-        offerBox.select(); // auto select for easy copy
+      if (e.candidate === null) {
+        // localDescription will contain full SDP once ICE gathering finished
+        offerBox.value = JSON.stringify(pc.localDescription);
       }
     };
 
     startBtn.onclick = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+        // Capture system audio by asking to share display with audio
+        const stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: false });
+        // Attach tracks to PeerConnection
+        stream.getTracks().forEach(t => pc.addTrack(t, stream));
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
+        // Wait for ICE gathering to complete; onicecandidate handler will fill offer
+        offerBox.value = "Gathering ICE... please wait until this area is populated automatically.";
       } catch (err) {
-        alert("Error accessing microphone: " + err.message);
+        alert('Error capturing display audio: ' + err);
       }
     };
 
     setAnswerBtn.onclick = async () => {
       try {
-        const answer = JSON.parse(atob(answerBox.value));
+        const answer = JSON.parse(answerBox.value);
         await pc.setRemoteDescription(answer);
-        alert("✅ Client connected. Audio streaming started!");
+        alert('Answer set — client should be connected.');
       } catch (err) {
-        alert("Invalid answer: " + err.message);
+        alert('Error setting answer: ' + err);
       }
     };
   </script>
