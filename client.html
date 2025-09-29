@@ -1,34 +1,41 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <title>Audio Client</title>
-</head>
+<head><meta charset="utf-8"><title>Audio Client (manual SDP)</title></head>
 <body>
   <h2>Android Audio Client</h2>
-  <textarea id="offer" placeholder="Paste server offer here" rows="5" cols="60"></textarea>
+  <p>Paste server Offer here:</p>
+  <textarea id="offer" rows="8" cols="80"></textarea><br>
   <button id="connect">Connect</button>
-  <pre id="log"></pre>
-  <audio id="player" autoplay controls></audio>
+  <p>Client Answer (copy to server):</p>
+  <textarea id="answer" rows="8" cols="80"></textarea><br>
+  <audio id="player" controls autoplay></audio>
 
   <script>
-    const pc = new RTCPeerConnection();
-    const offerBox = document.getElementById("offer");
-    const connectBtn = document.getElementById("connect");
-    const log = document.getElementById("log");
-    const player = document.getElementById("player");
+    const offerBox = document.getElementById('offer');
+    const answerBox = document.getElementById('answer');
+    const connectBtn = document.getElementById('connect');
+    const player = document.getElementById('player');
 
-    pc.ontrack = e => player.srcObject = e.streams[0];
+    const pc = new RTCPeerConnection();
+    pc.ontrack = e => {
+      player.srcObject = e.streams[0];
+    };
+
+    pc.onicecandidate = e => {
+      if (e.candidate === null) {
+        answerBox.value = JSON.stringify(pc.localDescription);
+      }
+    };
 
     connectBtn.onclick = async () => {
       try {
-        const offer = JSON.parse(atob(offerBox.value));
+        const offer = JSON.parse(offerBox.value);
         await pc.setRemoteDescription(offer);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        log.textContent = btoa(JSON.stringify(answer)); // show short base64 answer
-        alert("✅ Copy this answer and paste back on server.");
+        answerBox.value = "Gathering ICE... please wait until this area is populated automatically.";
       } catch (err) {
-        alert("Error: " + err.message);
+        alert('Error: ' + err);
       }
     };
   </script>
